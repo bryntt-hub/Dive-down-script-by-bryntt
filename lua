@@ -2,6 +2,8 @@ local Players = game:GetService("Players")
 local localPlayer = Players.LocalPlayer
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
 
 local running = false
 local farmDelayActive = false
@@ -308,6 +310,13 @@ CreateNavBtn("TP TO SELL AREA", UDim2.new(0, 15, 0, 130), function()
     if hrp then pcall(function() hrp.CFrame = CFrame.new(SELL_POS) end) end
 end)
 
+CreateNavBtn("Sell All Fish", UDim2.new(0, 15, 0, 175), function()
+    local args = {
+        buffer.fromstring("\003\000")
+    }
+    game:GetService("ReplicatedStorage"):WaitForChild("Packets"):WaitForChild("Packet"):WaitForChild("RemoteEvent"):FireServer(unpack(args))
+end)
+
 -- Whale detection and immediate teleport + collect with pause on fish auto-collect
 local whaleCollectCooldown = false
 
@@ -346,7 +355,6 @@ workspace.DescendantAdded:Connect(function(descendant)
     end
 end)
 
--- Modified fish collecting loop: only target prompts with "catch" in ActionText or ObjectText
 task.spawn(function()
     while task.wait(0.12) do
         if not running or farmDelayActive or whaleCollectCooldown then continue end

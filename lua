@@ -3,11 +3,11 @@ local localPlayer = Players.LocalPlayer
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-
+local UserInputService = game:GetService("UserInputService")
 
 local running = false
+local starting = false
 local farmDelayActive = false
-local whalesCaught = 0
 local initialWhaleCount = 0
 local processedWhales = {}
 local minimized = false
@@ -15,465 +15,459 @@ local minimized = false
 local HP_THRESHOLD = 35
 local OXYGEN_THRESHOLD = 25
 local SELL_POS = Vector3.new(-1933.84, 2531.77, -1421.55)
-local DEEP_DARK_POS = Vector3.new(-1922.33, 573.04, -1421.30)
+local ATLANTIS_POS = Vector3.new(-1900.36, 67.52, -1410.65)
 
 local Midnight = {
-    Main = Color3.fromRGB(15, 15, 18),
-    Header = Color3.fromRGB(20, 20, 25),
+    Main = Color3.fromRGB(12, 12, 15),
+    Header = Color3.fromRGB(18, 18, 22),
     Accent = Color3.fromRGB(0, 170, 255),
-    Success = Color3.fromRGB(0, 255, 120),
+    Success = Color3.fromRGB(0, 220, 100),
     Danger = Color3.fromRGB(255, 60, 60),
-    Text = Color3.fromRGB(240, 240, 240),
-    Stroke = Color3.fromRGB(45, 45, 50)
+    Text = Color3.fromRGB(255, 255, 255),
+    GhostText = Color3.fromRGB(150, 150, 150),
+    Stroke = Color3.fromRGB(40, 40, 45)
 }
 
+-- GUI Setup
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "AutoCollectBryntt_V25"
+ScreenGui.Name = "AutoCollectBryntt_V3_FULL"
 ScreenGui.ResetOnSpawn = false
 ScreenGui.Parent = localPlayer:WaitForChild("PlayerGui")
 
-local CounterFrame = Instance.new("Frame")
-CounterFrame.Size = UDim2.new(0, 220, 0, 42)
-CounterFrame.Position = UDim2.new(0.5, -110, 0, 10)
-CounterFrame.BackgroundColor3 = Midnight.Main
-CounterFrame.Parent = ScreenGui
-Instance.new("UICorner", CounterFrame)
-local CounterStroke = Instance.new("UIStroke", CounterFrame)
-CounterStroke.Color = Midnight.Stroke
-CounterStroke.Thickness = 1.5
-
-local WhaleLabel = Instance.new("TextLabel")
-WhaleLabel.Size = UDim2.new(1, 0, 1, 0)
-WhaleLabel.BackgroundTransparency = 1
-WhaleLabel.Text = "Whales Caught: 0"
-WhaleLabel.TextColor3 = Midnight.Success
-WhaleLabel.Font = Enum.Font.GothamBold
-WhaleLabel.TextSize = 14
-WhaleLabel.Parent = CounterFrame
-
 local MainFrame = Instance.new("Frame", ScreenGui)
-MainFrame.Size = UDim2.new(0, 240, 0, 260)
+MainFrame.Size = UDim2.new(0, 320, 0, 370)
 MainFrame.Position = UDim2.new(0.1, 0, 0.35, 0)
 MainFrame.BackgroundColor3 = Midnight.Main
-MainFrame.Draggable = true
+MainFrame.BorderSizePixel = 0
 MainFrame.Active = true
-Instance.new("UICorner", MainFrame)
-Instance.new("UIStroke", MainFrame).Color = Midnight.Stroke
+MainFrame.ClipsDescendants = true
+Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 8)
+local MainStroke = Instance.new("UIStroke", MainFrame)
+MainStroke.Color = Midnight.Stroke
+MainStroke.Thickness = 1.5
+
+-- CUSTOM DRAG LOGIC (MOVABLE GUI)
+local dragging, dragInput, dragStart, startPos
+local function update(input)
+    local delta = input.Position - dragStart
+    MainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+end
+MainFrame.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true
+        dragStart = input.Position
+        startPos = MainFrame.Position
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then dragging = false end
+        end)
+    end
+end)
+MainFrame.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then dragInput = input end
+end)
+UserInputService.InputChanged:Connect(function(input)
+    if input == dragInput and dragging then update(input) end
+end)
 
 local Header = Instance.new("Frame", MainFrame)
-Header.Size = UDim2.new(1, 0, 0, 40)
+Header.Size = UDim2.new(1, 0, 0, 45)
 Header.BackgroundColor3 = Midnight.Header
-Instance.new("UICorner", Header)
+Header.BorderSizePixel = 0
+Instance.new("UICorner", Header).CornerRadius = UDim.new(0, 8)
 
 local Title = Instance.new("TextLabel", Header)
-Title.Size = UDim2.new(1, -70, 1, 0)
-Title.Position = UDim2.new(0, 12, 0, 0)
-Title.Text = "Auto Collect Fish By Bryntt"
+Title.Size = UDim2.new(1, -90, 0, 25)
+Title.Position = UDim2.new(0, 15, 0, 5)
+Title.Text = "FISH AUTOFARM"
 Title.TextColor3 = Midnight.Text
 Title.Font = Enum.Font.GothamBold
 Title.BackgroundTransparency = 1
-Title.TextSize = 11
+Title.TextSize = 14
 Title.TextXAlignment = Enum.TextXAlignment.Left
 
+local SubTitle = Instance.new("TextLabel", Header)
+SubTitle.Size = UDim2.new(1, -90, 0, 15)
+SubTitle.Position = UDim2.new(0, 15, 0, 24)
+SubTitle.Text = "Developed by Bryntt"
+SubTitle.TextColor3 = Midnight.GhostText
+SubTitle.Font = Enum.Font.Gotham
+SubTitle.BackgroundTransparency = 1
+SubTitle.TextSize = 10
+SubTitle.TextXAlignment = Enum.TextXAlignment.Left
+
 local CloseBtn = Instance.new("TextButton", Header)
-CloseBtn.Size = UDim2.new(0, 25, 0, 25)
-CloseBtn.Position = UDim2.new(1, -30, 0, 7)
+CloseBtn.Size = UDim2.new(0, 28, 0, 28)
+CloseBtn.Position = UDim2.new(1, -35, 0, 8)
 CloseBtn.BackgroundColor3 = Midnight.Danger
-CloseBtn.Text = "X"
+CloseBtn.Text = "×"
+CloseBtn.TextSize = 20
 CloseBtn.TextColor3 = Midnight.Text
 CloseBtn.Font = Enum.Font.GothamBold
 Instance.new("UICorner", CloseBtn)
 CloseBtn.MouseButton1Click:Connect(function() ScreenGui:Destroy() end)
 
+-- Minimize Button Logic
 local MinBtn = Instance.new("TextButton", Header)
-MinBtn.Size = UDim2.new(0, 25, 0, 25)
-MinBtn.Position = UDim2.new(1, -60, 0, 7)
-MinBtn.BackgroundColor3 = Midnight.Accent
+MinBtn.Size = UDim2.new(0, 28, 0, 28)
+MinBtn.Position = UDim2.new(1, -70, 0, 8)
+MinBtn.BackgroundColor3 = Midnight.GhostText
 MinBtn.Text = "-"
+MinBtn.TextSize = 20
 MinBtn.TextColor3 = Midnight.Text
 MinBtn.Font = Enum.Font.GothamBold
 Instance.new("UICorner", MinBtn)
 
-local ContentFrame = Instance.new("Frame", MainFrame)
-ContentFrame.Size = UDim2.new(1, 0, 1, -40)
-ContentFrame.Position = UDim2.new(0, 0, 0, 40)
+local ContentFrame = Instance.new("ScrollingFrame", MainFrame)
+ContentFrame.Size = UDim2.new(1, 0, 1, -50)
+ContentFrame.Position = UDim2.new(0, 0, 0, 50)
 ContentFrame.BackgroundTransparency = 1
+ContentFrame.BorderSizePixel = 0
+ContentFrame.ScrollBarThickness = 2
+ContentFrame.ScrollBarImageColor3 = Midnight.Accent
+ContentFrame.CanvasSize = UDim2.new(0, 0, 0, 480)
+
+MinBtn.MouseButton1Click:Connect(function()
+    minimized = not minimized
+    if minimized then
+        MainFrame.Size = UDim2.new(0, 320, 0, 45)
+        ContentFrame.Visible = false
+        MinBtn.Text = "+"
+    else
+        MainFrame.Size = UDim2.new(0, 320, 0, 370)
+        ContentFrame.Visible = true
+        MinBtn.Text = "-"
+    end
+end)
+
+local UIList = Instance.new("UIListLayout", ContentFrame)
+UIList.Padding = UDim.new(0, 8)
+UIList.HorizontalAlignment = Enum.HorizontalAlignment.Center
+UIList.SortOrder = Enum.SortOrder.LayoutOrder
 
 local StatusLabel = Instance.new("TextLabel", ContentFrame)
-StatusLabel.Size = UDim2.new(1, 0, 0, 20)
-StatusLabel.Position = UDim2.new(0,0,0,5)
-StatusLabel.Text = "STATUS: IDLE"
-StatusLabel.TextColor3 = Midnight.Accent
+StatusLabel.Size = UDim2.new(0.9, 0, 0, 25)
+StatusLabel.Text = "SYSTEM IDLE"
+StatusLabel.TextColor3 = Midnight.GhostText
 StatusLabel.BackgroundTransparency = 1
-StatusLabel.Font = Enum.Font.GothamMedium
+StatusLabel.Font = Enum.Font.GothamBold
+StatusLabel.TextSize = 12
+StatusLabel.LayoutOrder = 0
 
 local ToggleBtn = Instance.new("TextButton", ContentFrame)
-ToggleBtn.Size = UDim2.new(1, -30, 0, 45)
-ToggleBtn.Position = UDim2.new(0, 15, 0, 30)
+ToggleBtn.Size = UDim2.new(0.9, 0, 0, 40)
 ToggleBtn.BackgroundColor3 = Midnight.Header
 ToggleBtn.Text = "ENABLE SCRIPT"
 ToggleBtn.TextColor3 = Midnight.Text
 ToggleBtn.Font = Enum.Font.GothamBold
+ToggleBtn.LayoutOrder = 1
 Instance.new("UICorner", ToggleBtn)
+Instance.new("UIStroke", ToggleBtn).Color = Midnight.Stroke
 
-MinBtn.MouseButton1Click:Connect(function()
-    minimized = not minimized
-    local targetSize = minimized and UDim2.new(0, 240, 0, 40) or UDim2.new(0, 240, 0, 260)
-    TweenService:Create(MainFrame, TweenInfo.new(0.4, Enum.EasingStyle.Quart), {Size = targetSize}):Play()
-    ContentFrame.Visible = not minimized
-    MinBtn.Text = minimized and "+" or "-"
-end)
-
-local function getWhaleCountInInventory()
-    local count = 0
-    local locations = {localPlayer.Backpack, localPlayer.Character}
-    for _, loc in pairs(locations) do
-        for _, item in ipairs(loc:GetChildren()) do
-            if item:IsA("Tool") and item.Name:lower():find("whale") then
-                count = count + 1
-            end
-        end
-    end
-    return count
-end
-
-task.spawn(function()
-    while true do
-        task.wait(0.5)
-        if running then
-            local currentTotal = getWhaleCountInInventory()
-            whalesCaught = math.max(0, currentTotal - initialWhaleCount)
-            WhaleLabel.Text = "Whales Caught: " .. whalesCaught
-        end
-    end
-end)
-
-local function processTarget(obj)
-    if obj.Name:lower():find("whale") and not processedWhales[obj] then
-        local prompt = obj:FindFirstChildOfClass("ProximityPrompt", true)
-        if prompt then
-            processedWhales[obj] = true
-            farmDelayActive = false
-            task.spawn(function()
-                while obj:IsDescendantOf(workspace) and prompt.Enabled and running do
-                    local hrp = localPlayer.Character and localPlayer.Character:FindFirstChild("HumanoidRootPart")
-                    if hrp then
-                        local targetPos
-                        if obj:IsA("Model") then
-                            local ok, pivot = pcall(function() return obj.PrimaryPart and obj.PrimaryPart.Position or obj:GetModelCFrame().Position end)
-                            targetPos = (ok and pivot) or (obj:GetModelCFrame().Position)
-                        else
-                            targetPos = obj.Position
-                        end
-                        pcall(function()
-                            if hrp and hrp.Parent then
-                                hrp.CFrame = CFrame.new(targetPos + Vector3.new(0, 6, 0))
-                            end
-                        end)
-                        if typeof(fireproximityprompt) == "function" then
-                            pcall(function() fireproximityprompt(prompt) end)
-                        end
-                    end
-                    task.wait(0.3)
-                end
-            end)
-        end
-    end
-end
-
-workspace.DescendantAdded:Connect(function(d) if running then processTarget(d) end end)
-
-local inEmergency = false
-local lastHp = 100
-local healthConnection = nil
-local charConnection = nil
-
-local function safeTeleportTo(pos)
-    task.spawn(function()
-        for _ = 1, 30 do
-            local hrp = localPlayer.Character and localPlayer.Character:FindFirstChild("HumanoidRootPart")
-            if hrp then
-                pcall(function() hrp.CFrame = CFrame.new(pos) end)
-                break
-            end
-            task.wait(0.2)
-        end
-    end)
-end
-
-local function triggerEmergency()
-    if inEmergency then return end
-    inEmergency = true
-    farmDelayActive = true
-    StatusLabel.Text = "STATUS: EMERGENCY - TELEPORTING TO SELL"
-    safeTeleportTo(SELL_POS)
-    task.spawn(function()
-        local waited = 0
-        while waited < 15 do
-            task.wait(0.5)
-            waited = waited + 0.5
-        end
-        safeTeleportTo(DEEP_DARK_POS)
-        task.delay(0.5, function()
-            farmDelayActive = false
-            StatusLabel.Text = running and "STATUS: ACTIVE" or "STATUS: IDLE"
-            local hum = localPlayer.Character and localPlayer.Character:FindFirstChildOfClass("Humanoid")
-            if hum then
-                lastHp = hum.Health
-            end
-            inEmergency = false
-        end)
-    end)
-end
-
-local function attachHealthMonitor(character)
-    if healthConnection then
-        healthConnection:Disconnect()
-        healthConnection = nil
-    end
-    local humanoid = character and character:FindFirstChildOfClass("Humanoid")
-    if not humanoid then return end
-    lastHp = humanoid.Health or 100
-    healthConnection = humanoid.HealthChanged:Connect(function(newHealth)
-        if not running then
-            lastHp = newHealth
-            return
-        end
-        if (newHealth < lastHp) or (newHealth <= HP_THRESHOLD) then
-            triggerEmergency()
-        end
-        lastHp = newHealth
-    end)
-    humanoid.Died:Connect(function()
-        if inEmergency then return end
-        triggerEmergency()
-    end)
-end
-
-local function onCharacterAdded(char)
-    attachHealthMonitor(char)
-end
-
-if localPlayer.Character then
-    onCharacterAdded(localPlayer.Character)
-end
-if charConnection then charConnection:Disconnect() end
-charConnection = localPlayer.CharacterAdded:Connect(onCharacterAdded)
-
-ToggleBtn.MouseButton1Click:Connect(function()
-    running = not running
-    ToggleBtn.Text = running and "DISABLE SCRIPT" or "ENABLE SCRIPT"
-    ToggleBtn.BackgroundColor3 = running and Midnight.Success or Midnight.Header
-    if running then
-        initialWhaleCount = getWhaleCountInInventory()
-        whalesCaught = 0
-        processedWhales = {}
-        WhaleLabel.Text = "Whales Caught: 0"
-        local hrp = localPlayer.Character and localPlayer.Character:FindFirstChild("HumanoidRootPart")
-        if hrp then
-            pcall(function() hrp.CFrame = CFrame.new(DEEP_DARK_POS) end)
-            farmDelayActive = true
-            StatusLabel.Text = "STATUS: INITIALIZING (4S)"
-            task.delay(4, function() if running then farmDelayActive = false; StatusLabel.Text = "STATUS: ACTIVE" end end)
-        end
-        if localPlayer.Character then attachHealthMonitor(localPlayer.Character) end
-    else
-        StatusLabel.Text = "STATUS: SYSTEM IDLE"
-        whalesCaught = 0
-        initialWhaleCount = 0
-        processedWhales = {}
-        WhaleLabel.Text = "Whales Caught: 0"
-    end
-end)
-
-local function CreateNavBtn(text, pos, callback)
+local function CreateStyledBtn(text, order, callback)
     local btn = Instance.new("TextButton", ContentFrame)
-    btn.Size = UDim2.new(1, -30, 0, 35)
-    btn.Position = pos
+    btn.Size = UDim2.new(0.9, 0, 0, 40)
     btn.BackgroundColor3 = Midnight.Header
     btn.Text = text
     btn.TextColor3 = Midnight.Text
     btn.Font = Enum.Font.GothamBold
-    btn.TextSize = 11
+    btn.TextSize = 12
+    btn.LayoutOrder = order
     Instance.new("UICorner", btn)
-    Instance.new("UIStroke", btn).Color = Midnight.Stroke
+    local s = Instance.new("UIStroke", btn)
+    s.Color = Midnight.Stroke
     btn.MouseButton1Click:Connect(callback)
+    return btn
 end
 
-CreateNavBtn("TP TO DEEP DARK", UDim2.new(0, 15, 0, 85), function()
+CreateStyledBtn("TELEPORT TO ATLANTIS", 2, function()
     local hrp = localPlayer.Character and localPlayer.Character:FindFirstChild("HumanoidRootPart")
-    if hrp then pcall(function() hrp.CFrame = CFrame.new(DEEP_DARK_POS) end) end
+    if hrp then pcall(function() hrp.CFrame = CFrame.new(ATLANTIS_POS) end) end
 end)
 
-CreateNavBtn("TP TO SELL AREA", UDim2.new(0, 15, 0, 130), function()
+CreateStyledBtn("TELEPORT TO SELL AREA", 3, function()
     local hrp = localPlayer.Character and localPlayer.Character:FindFirstChild("HumanoidRootPart")
     if hrp then pcall(function() hrp.CFrame = CFrame.new(SELL_POS) end) end
 end)
 
-CreateNavBtn("Sell All Fish", UDim2.new(0, 15, 0, 175), function()
-    local args = {
-        buffer.fromstring("\003\000")
-    }
+CreateStyledBtn("SELL ALL FISH", 4, function()
+    local args = { buffer.fromstring("\003\000") }
     game:GetService("ReplicatedStorage"):WaitForChild("Packets"):WaitForChild("Packet"):WaitForChild("RemoteEvent"):FireServer(unpack(args))
 end)
 
--- Whale detection and immediate teleport + collect with pause on fish auto-collect
-local whaleCollectCooldown = false
+local ESPEnabled = false
+local ESPBtn = CreateStyledBtn("TOGGLE FISH ESP", 5, function()
+    ESPEnabled = not ESPEnabled
+    StatusLabel.Text = ESPEnabled and "STATUS: ESP ENABLED" or "STATUS: ESP DISABLED"
+    StatusLabel.TextColor3 = ESPEnabled and Midnight.Accent or Midnight.GhostText
+end)
 
-local function teleportToPosition(pos)
-    local hrp = localPlayer.Character and localPlayer.Character:FindFirstChild("HumanoidRootPart")
-    if hrp then
-        pcall(function() hrp.CFrame = CFrame.new(pos) end)
+---------------------------------------------------------
+-- INTERNAL GAME LOGIC
+---------------------------------------------------------
+
+local function interact(prompt)
+    if not prompt or not prompt.Parent then return end
+    if typeof(fireproximityprompt) == "function" then
+        pcall(function() fireproximityprompt(prompt) end)
+        return
     end
+    pcall(function() prompt:InputHoldBegin() end)
+    task.wait((prompt.HoldDuration or 0) + 0.12)
+    pcall(function() prompt:InputHoldEnd() end)
 end
 
-local function collectWhale(whaleModel)
-    if not whaleModel or not whaleModel:IsDescendantOf(workspace) then return end
-    local prompt = whaleModel:FindFirstChildOfClass("ProximityPrompt", true)
-    if prompt and prompt.Enabled then
-        whaleCollectCooldown = true
-        farmDelayActive = true
-        teleportToPosition(whaleModel.PrimaryPart.Position + Vector3.new(0, 5, 0))
-        task.wait(0.5)
-        if typeof(fireproximityprompt) == "function" then
-            pcall(function() fireproximityprompt(prompt) end)
+local fishNames = {"Pebblefish", "Peeber", "Rubyfish", "Mermaid"}
+
+local function isFishModelName(name)
+    if not name then return false end
+    for _, v in ipairs(fishNames) do if string.find(string.lower(name), string.lower(v)) then return true end end
+    return false
+end
+
+local function getPartPositionFromInstance(inst)
+    if not inst then return nil end
+    if inst:IsA("BasePart") then return inst.Position end
+    if inst:IsA("Model") then
+        if inst.PrimaryPart then return inst.PrimaryPart.Position end
+        local bp = inst:FindFirstChildWhichIsA("BasePart", true)
+        if bp then return bp.Position end
+    end
+    return nil
+end
+
+local function findPriorityFishPrompt(hrp)
+    local nearestPrompt = nil
+    local shortestDistance = math.huge
+    for _, prompt in ipairs(workspace:GetDescendants()) do
+        if prompt:IsA("ProximityPrompt") and prompt.Enabled then
+            local model = prompt:FindFirstAncestorOfClass("Model")
+            if model and isFishModelName(model.Name) and string.find(string.lower(prompt.Name or ""), "catch") then
+                local pos = getPartPositionFromInstance(model)
+                if pos and hrp then
+                    local dist = (hrp.Position - pos).Magnitude
+                    if dist < shortestDistance then shortestDistance = dist nearestPrompt = prompt end
+                end
+            end
         end
-        task.delay(10, function()
-            whaleCollectCooldown = false
-            farmDelayActive = false
-        end)
     end
+    return nearestPrompt
 end
 
-workspace.DescendantAdded:Connect(function(descendant)
-    if not running then return end
-    if whaleCollectCooldown then return end
-    if descendant:IsA("Model") and descendant.Name:lower():find("whale") then
-        collectWhale(descendant)
-    elseif descendant:IsA("BasePart") and descendant.Parent and descendant.Parent:IsA("Model") and descendant.Parent.Name:lower():find("whale") then
-        collectWhale(descendant.Parent)
+local function findNearestGeneralPrompt(hrp)
+    local nearestPrompt = nil
+    local shortestDistance = math.huge
+    local excludedKeywords = {"buy", "purchase", "restock", "shop", "treat"}
+    
+    for _, prompt in ipairs(workspace:GetDescendants()) do
+        if prompt:IsA("ProximityPrompt") and prompt.Enabled then
+            local name = string.lower(prompt.Name or "")
+            local action = string.lower(prompt.ActionText or "")
+            local object = string.lower(prompt.ObjectText or "")
+            
+            local isExcluded = false
+            for _, word in ipairs(excludedKeywords) do
+                if string.find(name, word) or string.find(action, word) or string.find(object, word) then
+                    isExcluded = true
+                    break
+                end
+            end
+            
+            if not isExcluded then
+                local pos = getPartPositionFromInstance(prompt.Parent)
+                if pos and hrp then
+                    local dist = (hrp.Position - pos).Magnitude
+                    if dist < shortestDistance then
+                        shortestDistance = dist
+                        nearestPrompt = prompt
+                    end
+                end
+            end
+        end
+    end
+    return nearestPrompt
+end
+
+-- IMPROVED ESP LOGIC (Seen through walls + Name tags)
+local ESPObjects = {}
+task.spawn(function()
+    while task.wait(0.5) do
+        -- CLEANUP
+        for p, components in pairs(ESPObjects) do 
+            if not p or not p.Parent then 
+                if typeof(components) == "table" then
+                    for _, v in pairs(components) do if v then v:Destroy() end end
+                end
+                ESPObjects[p] = nil 
+            end 
+        end
+        
+        -- SCANNING
+        for _, obj in ipairs(workspace:GetDescendants()) do
+            if obj:IsA("Model") and isFishModelName(obj.Name) then
+                local p = obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart")
+                if p and not ESPObjects[p] then
+                    -- 1. BOX OVERLAY (Seen through walls)
+                    local box = Instance.new("BoxHandleAdornment", p)
+                    box.Name = "FishHighlight"
+                    box.Adornee = p
+                    box.AlwaysOnTop = true
+                    box.ZIndex = 11
+                    box.Transparency = 0.4
+                    box.Color3 = Midnight.Danger 
+                    box.Size = p.Size + Vector3.new(0.2, 0.2, 0.2)
+                    
+                    -- 2. NAME TAG (Seen through walls)
+                    local billboard = Instance.new("BillboardGui", p)
+                    billboard.Name = "FishNameTag"
+                    billboard.Adornee = p
+                    billboard.Size = UDim2.new(0, 150, 0, 40)
+                    billboard.StudsOffset = Vector3.new(0, 2, 0)
+                    billboard.AlwaysOnTop = true
+                    
+                    local label = Instance.new("TextLabel", billboard)
+                    label.BackgroundTransparency = 1
+                    label.Size = UDim2.new(1, 0, 1, 0)
+                    label.Text = obj.Name
+                    label.TextColor3 = Color3.fromRGB(255, 255, 255)
+                    label.TextStrokeTransparency = 0
+                    label.Font = Enum.Font.GothamBold
+                    label.TextSize = 14
+                    
+                    ESPObjects[p] = {box, billboard}
+                end
+            end
+        end
+        
+        -- TOGGLE VISIBILITY
+        if not ESPEnabled then
+             for p, components in pairs(ESPObjects) do
+                 if typeof(components) == "table" then
+                    for _, v in pairs(components) do if v then v:Destroy() end end
+                 end
+                 ESPObjects[p] = nil
+             end
+        end
     end
 end)
 
 task.spawn(function()
-    while task.wait(0.12) do
-        if not running or farmDelayActive or whaleCollectCooldown then continue end
-
+    while task.wait(0.3) do
+        if not running then continue end
         local hrp = localPlayer.Character and localPlayer.Character:FindFirstChild("HumanoidRootPart")
         if not hrp then continue end
+        
+        -- ACTIVATE ONLY IF AT ATLANTIS COORDS
+        if (hrp.Position - ATLANTIS_POS).Magnitude > 300 then continue end
 
-        local targetPrompt, shortest = nil, math.huge
-
-        for _, v in ipairs(workspace:GetDescendants()) do
-            if v:IsA("ProximityPrompt") and v.Enabled and not v.Parent.Name:lower():find("whale") then
-                local actionText = v.ActionText and tostring(v.ActionText):lower() or ""
-                local objectText = v.ObjectText and tostring(v.ObjectText):lower() or ""
-                if not (actionText:find("catch") or objectText:find("catch")) then
-                    continue
+        for _, obj in ipairs(workspace:GetDescendants()) do
+            if string.find(string.lower(obj.Name or ""), "whale") and not processedWhales[obj] then
+                local prompt = obj:FindFirstChildWhichIsA("ProximityPrompt", true)
+                if prompt then
+                    processedWhales[obj] = true
+                    task.spawn(function()
+                        while obj:IsDescendantOf(workspace) and prompt.Enabled and running do
+                            local hrpInside = localPlayer.Character and localPlayer.Character:FindFirstChild("HumanoidRootPart")
+                            if hrpInside then
+                                local targetPos = getPartPositionFromInstance(obj)
+                                if targetPos then pcall(function() hrpInside.CFrame = CFrame.new(targetPos + Vector3.new(0, 6, 0)) end) end
+                                interact(prompt)
+                            end
+                            task.wait(0.3)
+                        end
+                    end)
                 end
-
-                local pos = v.Parent:IsA("BasePart") and v.Parent.Position or (v.Parent:IsA("Model") and v.Parent.PrimaryPart and v.Parent.PrimaryPart.Position)
-                if pos then
-                    local dist = (hrp.Position - pos).Magnitude
-                    if dist < shortest then shortest = dist; targetPrompt = v end
-                end
-            end
-        end
-
-        if targetPrompt then
-            local success, pivot = pcall(function() return targetPrompt.Parent:GetPivot() end)
-            if success and pivot then
-                pcall(function() hrp.CFrame = CFrame.new(pivot.Position + Vector3.new(0, 2, 0)) end)
-            else
-                pcall(function() hrp.CFrame = CFrame.new(targetPrompt.Parent:GetPivot().Position + Vector3.new(0, 2, 0)) end)
-            end
-            task.wait(0.12)
-            if typeof(fireproximityprompt) == "function" then
-                pcall(function() fireproximityprompt(targetPrompt) end)
             end
         end
     end
 end)
 
-local notifiedWhales = {}
-local activeNotifications = {}
-
-local function layoutNotifications()
-    for i, frame in ipairs(activeNotifications) do
-        local targetY = 60 + (i - 1) * 56
-        pcall(function()
-            TweenService:Create(frame, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Position = UDim2.new(0.5, -150, 0, targetY)}):Play()
-        end)
-    end
-end
-
-local function showNotification(text, duration)
-    duration = duration or 4
-    local notif = Instance.new("Frame")
-    notif.Size = UDim2.new(0, 300, 0, 50)
-    notif.Position = UDim2.new(0.5, -150, 0, -70)
-    notif.AnchorPoint = Vector2.new(0, 0)
-    notif.BackgroundColor3 = Midnight.Header
-    notif.BorderSizePixel = 0
-    notif.Parent = ScreenGui
-    local corner = Instance.new("UICorner", notif)
-    corner.CornerRadius = UDim.new(0, 8)
-    local stroke = Instance.new("UIStroke", notif)
-    stroke.Color = Midnight.Stroke
-    stroke.Thickness = 1
-    local title = Instance.new("TextLabel", notif)
-    title.Size = UDim2.new(1, -20, 1, 0)
-    title.Position = UDim2.new(0, 10, 0, 0)
-    title.BackgroundTransparency = 1
-    title.Text = text
-    title.TextColor3 = Midnight.Text
-    title.Font = Enum.Font.GothamBold
-    title.TextSize = 14
-    title.TextXAlignment = Enum.TextXAlignment.Left
-    table.insert(activeNotifications, notif)
-    layoutNotifications()
-    task.delay(duration, function()
-        for i, f in ipairs(activeNotifications) do
-            if f == notif then
-                table.remove(activeNotifications, i)
-                break
+task.spawn(function()
+    while task.wait(0.1) do 
+        if not running then continue end
+        local char = localPlayer.Character
+        local hrp = char and char:FindFirstChild("HumanoidRootPart")
+        if not hrp then continue end
+        
+        -- ACTIVATE ONLY IF AT ATLANTIS COORDS
+        if (hrp.Position - ATLANTIS_POS).Magnitude > 300 then continue end
+        
+        local targetPrompt = findPriorityFishPrompt(hrp)
+        
+        if not targetPrompt then
+            targetPrompt = findNearestGeneralPrompt(hrp)
+        end
+        
+        if targetPrompt then
+            local pos = getPartPositionFromInstance(targetPrompt.Parent)
+            if pos then
+                pcall(function() hrp.CFrame = CFrame.new(pos + Vector3.new(0, 3, 0)) end)
+                task.wait(0.05)
+                interact(targetPrompt)
             end
         end
-        pcall(function()
-            TweenService:Create(notif, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Position = UDim2.new(0.5, -150, 0, -70)}):Play()
-        end)
-        task.wait(0.3)
-        pcall(function() notif:Destroy() end)
-        layoutNotifications()
+    end
+end)
+
+local inEmergency = false
+local function attachHealthMonitor(character)
+    local humanoid = character:WaitForChild("Humanoid")
+    humanoid.HealthChanged:Connect(function(hp)
+        if running and hp <= HP_THRESHOLD and not inEmergency then
+            inEmergency = true
+            local oldRunning = running
+            running = false
+            StatusLabel.Text = "EMERGENCY - SELLING"
+            StatusLabel.TextColor3 = Midnight.Danger
+            local hrp = character:FindFirstChild("HumanoidRootPart")
+            if hrp then hrp.CFrame = CFrame.new(SELL_POS) end
+            task.wait(15)
+            if hrp then hrp.CFrame = CFrame.new(ATLANTIS_POS) end
+            task.wait(1)
+            inEmergency = false
+            running = oldRunning
+            StatusLabel.Text = running and "STATUS: ACTIVE" or "SYSTEM IDLE"
+            StatusLabel.TextColor3 = running and Midnight.Success or Midnight.GhostText
+        end
     end)
 end
 
-workspace.DescendantAdded:Connect(function(d)
-    local ok, name = pcall(function() return d.Name end)
-    if not ok then return end
-    local lname = tostring(name):lower()
-    if d:IsA("Model") and lname:find("whale") then
-        if not notifiedWhales[d] then
-            notifiedWhales[d] = true
-            showNotification("Whale Spawned", 4)
-            d.AncestryChanged:Connect(function(_, parent)
-                if not parent then
-                    notifiedWhales[d] = nil
-                end
-            end)
-        end
-        return
-    end
-    if d:IsA("BasePart") and d.Parent and d.Parent.Name and tostring(d.Parent.Name):lower():find("whale") then
-        local parent = d.Parent
-        if not notifiedWhales[parent] then
-            notifiedWhales[parent] = true
-            showNotification("Whale Spawned", 4)
-            parent.AncestryChanged:Connect(function(_, par)
-                if not par then
-                    notifiedWhales[parent] = nil
-                end
-            end)
-        end
+localPlayer.CharacterAdded:Connect(attachHealthMonitor)
+if localPlayer.Character then attachHealthMonitor(localPlayer.Character) end
+
+ToggleBtn.MouseButton1Click:Connect(function()
+    if running or starting then
+        running = false
+        starting = false
+        ToggleBtn.Text = "ENABLE SCRIPT"
+        ToggleBtn.BackgroundColor3 = Midnight.Header
+        StatusLabel.Text = "SYSTEM IDLE"
+        StatusLabel.TextColor3 = Midnight.GhostText
+    else
+        starting = true
+        task.spawn(function()
+            for i = 4, 1, -1 do
+                if not starting then return end
+                ToggleBtn.Text = "CANCEL START (" .. i .. ")"
+                StatusLabel.Text = "STARTING IN " .. i .. "s"
+                StatusLabel.TextColor3 = Midnight.Accent
+                task.wait(1)
+            end
+            if not starting then return end
+            
+            -- TELEPORT TO ATLANTIS UPON ENABLING
+            local hrp = localPlayer.Character and localPlayer.Character:FindFirstChild("HumanoidRootPart")
+            if hrp then 
+                pcall(function() hrp.CFrame = CFrame.new(ATLANTIS_POS) end)
+            end
+            
+            task.wait(0.5) -- Small delay for character arrival
+            
+            starting = false
+            running = true
+            ToggleBtn.Text = "DISABLE SCRIPT"
+            ToggleBtn.BackgroundColor3 = Midnight.Success
+            StatusLabel.Text = "STATUS: ACTIVE"
+            StatusLabel.TextColor3 = Midnight.Success
+        end)
     end
 end)
